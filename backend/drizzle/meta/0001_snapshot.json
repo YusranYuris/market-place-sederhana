@@ -1,0 +1,369 @@
+{
+  "id": "6e943877-823f-44fc-ae02-cdb5f4e77c2b",
+  "prevId": "be3118ba-0d7c-4ca5-8f83-1d336dfce597",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.order_detail": {
+      "name": "order_detail",
+      "schema": "",
+      "columns": {
+        "id_detail": {
+          "name": "id_detail",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_order": {
+          "name": "id_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_product": {
+          "name": "id_product",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qty": {
+          "name": "qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "harga_satuan": {
+          "name": "harga_satuan",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subtotal": {
+          "name": "subtotal",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "order_detail_id_order_orders_id_order_fk": {
+          "name": "order_detail_id_order_orders_id_order_fk",
+          "tableFrom": "order_detail",
+          "tableTo": "orders",
+          "columnsFrom": [
+            "id_order"
+          ],
+          "columnsTo": [
+            "id_order"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "order_detail_id_product_products_id_product_fk": {
+          "name": "order_detail_id_product_products_id_product_fk",
+          "tableFrom": "order_detail",
+          "tableTo": "products",
+          "columnsFrom": [
+            "id_product"
+          ],
+          "columnsTo": [
+            "id_product"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.orders": {
+      "name": "orders",
+      "schema": "",
+      "columns": {
+        "id_order": {
+          "name": "id_order",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_pembeli": {
+          "name": "id_pembeli",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tgl_order": {
+          "name": "tgl_order",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "total_harga": {
+          "name": "total_harga",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status_order": {
+          "name": "status_order",
+          "type": "status_order",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'menunggu_bayar'"
+        },
+        "alamat_pengiriman": {
+          "name": "alamat_pengiriman",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bukti_bayar": {
+          "name": "bukti_bayar",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "orders_id_pembeli_users_id_user_fk": {
+          "name": "orders_id_pembeli_users_id_user_fk",
+          "tableFrom": "orders",
+          "tableTo": "users",
+          "columnsFrom": [
+            "id_pembeli"
+          ],
+          "columnsTo": [
+            "id_user"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.products": {
+      "name": "products",
+      "schema": "",
+      "columns": {
+        "id_product": {
+          "name": "id_product",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id_penjual": {
+          "name": "id_penjual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nama_product": {
+          "name": "nama_product",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deskripsi": {
+          "name": "deskripsi",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "harga": {
+          "name": "harga",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stok": {
+          "name": "stok",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "kategori": {
+          "name": "kategori",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gambar_product": {
+          "name": "gambar_product",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_product": {
+          "name": "status_product",
+          "type": "status_product",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'tersedia'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "products_id_penjual_users_id_user_fk": {
+          "name": "products_id_penjual_users_id_user_fk",
+          "tableFrom": "products",
+          "tableTo": "users",
+          "columnsFrom": [
+            "id_penjual"
+          ],
+          "columnsTo": [
+            "id_user"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id_user": {
+          "name": "id_user",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "nama_user": {
+          "name": "nama_user",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tgl_daftar": {
+          "name": "tgl_daftar",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "foto_profil": {
+          "name": "foto_profil",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_user": {
+          "name": "status_user",
+          "type": "status_user",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'aktif'"
+        }
+      },
+      "indexes": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.status_order": {
+      "name": "status_order",
+      "schema": "public",
+      "values": [
+        "menunggu_bayar",
+        "menunggu_konfirmasi",
+        "diproses",
+        "dikirim",
+        "selesai",
+        "dibatalkan"
+      ]
+    },
+    "public.status_product": {
+      "name": "status_product",
+      "schema": "public",
+      "values": [
+        "tersedia",
+        "habis"
+      ]
+    },
+    "public.role": {
+      "name": "role",
+      "schema": "public",
+      "values": [
+        "pembeli",
+        "penjual"
+      ]
+    },
+    "public.status_user": {
+      "name": "status_user",
+      "schema": "public",
+      "values": [
+        "aktif",
+        "tidak_aktif"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

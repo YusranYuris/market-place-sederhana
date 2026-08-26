@@ -1,0 +1,36 @@
+.checkout-page {
+  max-width: 900px;
+}
+
+.checkout-card {
+  padding: 30px;
+  margin-top: 28px;
+}
+
+.checkout-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.checkout-item-category {
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-top: 2px;
+}
+
+.checkout-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .checkout-top {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-card {
+    padding: 20px;
+  }
+}

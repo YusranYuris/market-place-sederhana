@@ -1,839 +1,432 @@
-import {
-    eq,
-    and,
-    desc,
-    gte,
-} from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "../db/index.js";
+
 import {
-    orders,
-    orderDetails,
-    produk,
+  orders,
+  orderDetails,
+  products,
 } from "../db/schema.js";
+
+import {
+  uploadFile,
+  getSignedUrl,
+} from "./storageService.js";
 
 // =========== ORDER SERVICE ===========
 
 // ----- Helper ------
 
-const getOrderDetails = async (orderId) => {
-    const details = await db
-        .select({
-            idDetail: orderDetails.idDetail,
-            idProduct: orderDetails.idProduct,
-            namaProduct: produk.namaProduct,
-            gambarProduct: produk.gambarProduct,
-            qty: orderDetails.qty,
-            hargaSatuan: orderDetails.hargaSatuan,
-            subtotal: orderDetails.subtotal,
-        })
-        .from(orderDetails)
-        .innerJoin(
-            produk,
-            eq(
-                orderDetails.idProduct,
-                produk.idProduct
-            )
-        )
-        .where(
-            eq(orderDetails.idOrder, orderId)
-        );
+// Ambil semua id order yang memuat produk milik seller
+const getSellerOrderIds = async (sellerId) => {
+  const rows = await db
+    .select({
+      idOrder: orderDetails.idOrder,
+    })
+    .from(orderDetails)
+    .innerJoin(
+      products,
+      eq(orderDetails.idProduct, products.idProduct)
+    )
+    .where(eq(products.idPenjual, sellerId));
 
-    return details;
+  return [
+    ...new Set(rows.map((row) => row.idOrder)),
+  ];
 };
 
-// ----- Collection ------
+const verifySellerOrder = async (
+  sellerId,
+  orderId
+) => {
+  const orderIds = await getSellerOrderIds(sellerId);
 
-// Get Orders
-export const getOrders = async (user) => {
-    let userOrders = [];
+  if (!orderIds.includes(orderId)) {
+    throw new Error(
+      "Anda tidak memiliki akses ke order ini"
+    );
+  }
 
-    // ==========================
-    // PEMBELI
-    // ==========================
+  return true;
+};
 
-    if (user.role === "pembeli") {
-        userOrders = await db
-            .select()
-            .from(orders)
-            .where(
-                eq(
-                    orders.idPembeli,
-                    user.idUser
-                )
-            )
-            .orderBy(desc(orders.tglOrder));
-    }
+// Bukti bayar disimpan sebagai path, dikirim sebagai signed URL
+const withPaymentProofUrl = async (order) => {
+  if (!order.buktiBayar) {
+    return { ...order, buktiBayar: null };
+  }
 
-    // ==========================
-    // PENJUAL
-    // ==========================
-
-    else if (user.role === "penjual") {
-        userOrders = await db
-            .selectDistinct({
-                idOrder: orders.idOrder,
-                idPembeli: orders.idPembeli,
-                tglOrder: orders.tglOrder,
-                totalHarga: orders.totalHarga,
-                statusOrder: orders.statusOrder,
-                alamatPengiriman: orders.alamatPengiriman,
-                buktiBayar: orders.buktiBayar,
-            })
-            .from(orders)
-            .innerJoin(
-                orderDetails,
-                eq(
-                    orders.idOrder,
-                    orderDetails.idOrder
-                )
-            )
-            .innerJoin(
-                produk,
-                eq(
-                    orderDetails.idProduct,
-                    produk.idProduct
-                )
-            )
-            .where(
-                eq(
-                    produk.idPenjual,
-                    user.idUser
-                )
-            )
-            .orderBy(desc(orders.tglOrder));
-    }
-
-    else {
-        throw new Error("Role user tidak valid");
-    }
-
-    // Tambahkan detail produk
-    const result = await Promise.all(
-        userOrders.map(async (order) => {
-            const details = await getOrderDetails(
-                order.idOrder
-            );
-
-            return {
-                ...order,
-                details,
-            };
-        })
+  try {
+    return {
+      ...order,
+      buktiBayar: await getSignedUrl(
+        "payment-proofs",
+        order.buktiBayar
+      ),
+    };
+  } catch (error) {
+    console.error(
+      "Gagal membuat signed URL bukti bayar:",
+      error.message
     );
 
-    return result;
+    return { ...order, buktiBayar: null };
+  }
 };
 
+// ----- Buyer ------
+
 // Create New Order
-export const createOrder = async (data, user) => {
-    // Pastikan pembeli
-    if (user.role !== "pembeli") {
+export const createOrder = async (
+  buyerId,
+  data
+) => {
+  const {
+    items,
+    alamatPengiriman,
+  } = data;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error(
+      "Order harus memiliki produk"
+    );
+  }
+
+  if (!alamatPengiriman) {
+    throw new Error(
+      "Alamat pengiriman wajib diisi"
+    );
+  }
+
+  return await db.transaction(async (tx) => {
+    let totalHarga = 0;
+
+    const detailRows = [];
+
+    for (const item of items) {
+      const idProduct = Number(item.idProduct);
+      const qty = Number(item.qty);
+
+      if (!idProduct || Number.isNaN(qty) || qty <= 0) {
+        throw new Error("Item order tidak valid");
+      }
+
+      const found = await tx
+        .select()
+        .from(products)
+        .where(eq(products.idProduct, idProduct));
+
+      if (found.length === 0) {
         throw new Error(
-            "Hanya pembeli yang dapat membuat order"
+          `Produk dengan id ${idProduct} tidak ditemukan`
         );
+      }
+
+      const product = found[0];
+
+      if (product.stok < qty) {
+        throw new Error(
+          `Stok produk ${product.namaProduct} tidak mencukupi`
+        );
+      }
+
+      // Harga diambil dari database, bukan dari client
+      const hargaSatuan = Number(product.harga);
+      const subtotal = hargaSatuan * qty;
+
+      totalHarga += subtotal;
+
+      detailRows.push({
+        idProduct,
+        qty,
+        hargaSatuan: hargaSatuan.toFixed(2),
+        subtotal: subtotal.toFixed(2),
+      });
+
+      // Kurangi stok
+      const sisaStok = product.stok - qty;
+
+      await tx
+        .update(products)
+        .set({
+          stok: sisaStok,
+          statusProduct:
+            sisaStok > 0 ? "tersedia" : "habis",
+        })
+        .where(eq(products.idProduct, idProduct));
     }
 
-    const {
+    const [order] = await tx
+      .insert(orders)
+      .values({
+        idPembeli: buyerId,
+        totalHarga: totalHarga.toFixed(2),
         alamatPengiriman,
-        items,
-    } = data;
+        statusOrder: "menunggu_bayar",
+      })
+      .returning();
 
-    if (!alamatPengiriman) {
-        throw new Error(
-            "Alamat pengiriman wajib diisi"
-        );
-    }
+    const details = await tx
+      .insert(orderDetails)
+      .values(
+        detailRows.map((row) => ({
+          ...row,
+          idOrder: order.idOrder,
+        }))
+      )
+      .returning();
 
-    if (!Array.isArray(items) || items.length === 0) {
-        throw new Error(
-            "Produk order tidak boleh kosong"
-        );
-    }
+    return {
+      ...order,
+      items: details,
+    };
+  });
+};
 
-    return await db.transaction(async (tx) => {
-        let totalHarga = 0;
-        let sellerId = null;
-
-        const orderItems = [];
-
-        // ========================================
-        // 1. VALIDASI SEMUA PRODUK
-        // ========================================
-
-        for (const item of items) {
-            const productId = Number(
-                item.idProduct
-            );
-
-            const qty = Number(item.qty);
-
-            if (!productId || qty <= 0) {
-                throw new Error(
-                    "Data produk atau quantity tidak valid"
-                );
-            }
-
-            const [product] = await tx
-                .select()
-                .from(produk)
-                .where(
-                    eq(
-                        produk.idProduct,
-                        productId
-                    )
-                )
-                .limit(1);
-
-            if (!product) {
-                throw new Error(
-                    `Produk ${productId} tidak ditemukan`
-                );
-            }
-
-            if (
-                product.statusProduct !==
-                "tersedia"
-            ) {
-                throw new Error(
-                    `Produk ${product.namaProduct} sedang tidak tersedia`
-                );
-            }
-
-            if (product.stok < qty) {
-                throw new Error(
-                    `Stok ${product.namaProduct} tidak mencukupi`
-                );
-            }
-
-            // ========================================
-            // 2. SATU ORDER = SATU PENJUAL
-            // ========================================
-
-            if (sellerId === null) {
-                sellerId = product.idPenjual;
-            }
-
-            if (
-                product.idPenjual !== sellerId
-            ) {
-                throw new Error(
-                    "Satu order hanya dapat berisi produk dari satu penjual"
-                );
-            }
-
-            const subtotal =
-                product.harga * qty;
-
-            totalHarga += subtotal;
-
-            orderItems.push({
-                product,
-                qty,
-                subtotal,
-            });
-        }
-
-        // ========================================
-        // 3. CREATE ORDER
-        // ========================================
-
-        const [newOrder] = await tx
-            .insert(orders)
-            .values({
-                idPembeli: user.idUser,
-                totalHarga,
-                statusOrder: "menunggu_bayar",
-                alamatPengiriman,
-            })
-            .returning();
-
-        // ========================================
-        // 4. CREATE ORDER DETAILS
-        // ========================================
-
-        for (const item of orderItems) {
-            await tx
-                .insert(orderDetails)
-                .values({
-                    idOrder: newOrder.idOrder,
-                    idProduct:
-                        item.product.idProduct,
-                    qty: item.qty,
-                    hargaSatuan:
-                        item.product.harga,
-                    subtotal: item.subtotal,
-                });
-
-            // ========================================
-            // 5. KURANGI STOK
-            // ========================================
-
-            const updatedProduct =
-                await tx
-                    .update(produk)
-                    .set({
-                        stok:
-                            item.product.stok -
-                            item.qty,
-
-                        statusProduct:
-                            item.product.stok -
-                            item.qty >
-                            0
-                                ? "tersedia"
-                                : "habis",
-                    })
-                    .where(
-                        and(
-                            eq(
-                                produk.idProduct,
-                                item.product
-                                    .idProduct
-                            ),
-                            gte(
-                                produk.stok,
-                                item.qty
-                            )
-                        )
-                    )
-                    .returning({
-                        idProduct:
-                            produk.idProduct,
-                    });
-
-            if (updatedProduct.length === 0) {
-                throw new Error(
-                    `Stok produk ${item.product.namaProduct} berubah. Silakan coba lagi`
-                );
-            }
-        }
-
-        return {
-            ...newOrder,
-            details: orderItems.map(
-                (item) => ({
-                    idProduct:
-                        item.product.idProduct,
-                    namaProduct:
-                        item.product.namaProduct,
-                    qty: item.qty,
-                    hargaSatuan:
-                        item.product.harga,
-                    subtotal:
-                        item.subtotal,
-                })
-            ),
-        };
-    });
+// Get My Orders
+export const getMyOrders = async (
+  buyerId
+) => {
+  return await db
+    .select()
+    .from(orders)
+    .where(eq(orders.idPembeli, buyerId));
 };
 
 // ----- Resource ------
 
 // Get Order By ID
 export const getOrderById = async (
-    id,
-    user
+  userId,
+  role,
+  orderId
 ) => {
-    const orderId = Number(id);
+  const result = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.idOrder, orderId));
 
-    const [order] = await db
-        .select()
-        .from(orders)
-        .where(
-            eq(
-                orders.idOrder,
-                orderId
-            )
-        )
-        .limit(1);
+  if (result.length === 0) {
+    throw new Error("Order tidak ditemukan");
+  }
 
-    if (!order) {
-        throw new Error(
-            "Order tidak ditemukan"
-        );
-    }
+  const order = result[0];
 
-    const details =
-        await getOrderDetails(orderId);
+  // Pembeli harus memiliki order, penjual harus punya produk di order ini
+  if (role === "penjual") {
+    await verifySellerOrder(userId, orderId);
+  } else if (order.idPembeli !== userId) {
+    throw new Error(
+      "Anda tidak memiliki akses ke order ini"
+    );
+  }
 
-    // ========================================
-    // CEK AKSES PEMBELI
-    // ========================================
+  const details = await db
+    .select({
+      idDetail: orderDetails.idDetail,
+      idOrder: orderDetails.idOrder,
+      idProduct: orderDetails.idProduct,
+      namaProduct: products.namaProduct,
+      qty: orderDetails.qty,
+      hargaSatuan: orderDetails.hargaSatuan,
+      subtotal: orderDetails.subtotal,
+    })
+    .from(orderDetails)
+    .innerJoin(
+      products,
+      eq(orderDetails.idProduct, products.idProduct)
+    )
+    .where(eq(orderDetails.idOrder, orderId));
 
-    if (user.role === "pembeli") {
-        if (
-            order.idPembeli !==
-            user.idUser
-        ) {
-            throw new Error(
-                "Anda tidak memiliki akses ke order ini"
-            );
-        }
-    }
-
-    // ========================================
-    // CEK AKSES PENJUAL
-    // ========================================
-
-    if (user.role === "penjual") {
-        const isSellerOrder =
-            details.some(
-                (detail) => {
-                    return true;
-                }
-            );
-
-        if (!isSellerOrder) {
-            throw new Error(
-                "Anda tidak memiliki akses ke order ini"
-            );
-        }
-
-        // Ambil produk dari detail
-        for (const detail of details) {
-            const [product] =
-                await db
-                    .select({
-                        idPenjual:
-                            produk.idPenjual,
-                    })
-                    .from(produk)
-                    .where(
-                        eq(
-                            produk.idProduct,
-                            detail.idProduct
-                        )
-                    )
-                    .limit(1);
-
-            if (
-                product &&
-                product.idPenjual ===
-                    user.idUser
-            ) {
-                return {
-                    ...order,
-                    details,
-                };
-            }
-        }
-
-        throw new Error(
-            "Anda tidak memiliki akses ke order ini"
-        );
-    }
-
-    return {
-        ...order,
-        details,
-    };
+  return {
+    ...(await withPaymentProofUrl(order)),
+    items: details,
+  };
 };
-
-// ----- Order Actions ------
 
 // Upload Payment Proof
 export const uploadPaymentProof = async (
-    id,
-    file,
-    user
+  buyerId,
+  orderId,
+  file
 ) => {
-    const orderId = Number(id);
+  if (!file) {
+    throw new Error(
+      "Bukti pembayaran wajib diupload"
+    );
+  }
 
-    if (!file) {
-        throw new Error(
-            "Bukti pembayaran wajib diupload"
-        );
-    }
+  const result = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.idOrder, orderId));
 
-    const [order] = await db
-        .select()
-        .from(orders)
-        .where(
-            eq(
-                orders.idOrder,
-                orderId
-            )
-        )
-        .limit(1);
+  if (result.length === 0) {
+    throw new Error(
+      "Order tidak ditemukan"
+    );
+  }
 
-    if (!order) {
-        throw new Error(
-            "Order tidak ditemukan"
-        );
-    }
+  const order = result[0];
 
-    // Hanya pembeli pemilik order
-    if (
-        order.idPembeli !==
-        user.idUser
-    ) {
-        throw new Error(
-            "Anda tidak memiliki akses ke order ini"
-        );
-    }
+  if (order.idPembeli !== buyerId) {
+    throw new Error(
+      "Anda tidak memiliki akses ke order ini"
+    );
+  }
 
-    if (
-        order.statusOrder !==
-        "menunggu_bayar"
-    ) {
-        throw new Error(
-            "Order tidak dapat menerima bukti pembayaran"
-        );
-    }
+  if (order.statusOrder !== "menunggu_bayar") {
+    throw new Error(
+      "Bukti pembayaran hanya bisa diupload saat order menunggu pembayaran"
+    );
+  }
 
-    /*
-     * Sementara menggunakan lokasi file dari multer.
-     *
-     * Nanti ketika storage bucket sudah
-     * diintegrasikan, bagian ini diganti
-     * dengan URL hasil upload bucket.
-     */
-    const buktiBayar =
-        file.path ||
-        file.location ||
-        file.filename;
+  const uploaded = await uploadFile({
+    bucket: "payment-proofs",
+    folder: orderId.toString(),
+    file,
+  });
 
-    if (!buktiBayar) {
-        throw new Error(
-            "File bukti pembayaran tidak valid"
-        );
-    }
+  const [updatedOrder] = await db
+    .update(orders)
+    .set({
+      buktiBayar: uploaded.path,
+      statusOrder: "menunggu_konfirmasi",
+    })
+    .where(eq(orders.idOrder, orderId))
+    .returning();
 
-    const [updatedOrder] =
-        await db
-            .update(orders)
-            .set({
-                buktiBayar,
-                statusOrder:
-                    "menunggu_konfirmasi",
-            })
-            .where(
-                eq(
-                    orders.idOrder,
-                    orderId
-                )
-            )
-            .returning();
+  return await withPaymentProofUrl(updatedOrder);
+};
 
-    return updatedOrder;
+// ----- Seller ------
+
+// Get Seller Orders
+export const getSellerOrders = async (
+  sellerId
+) => {
+  const orderIds = await getSellerOrderIds(sellerId);
+
+  if (orderIds.length === 0) {
+    return [];
+  }
+
+  return await db
+    .select()
+    .from(orders)
+    .where(inArray(orders.idOrder, orderIds));
 };
 
 // Accept Order
 export const acceptOrder = async (
-    id,
-    user
+  sellerId,
+  orderId
 ) => {
-    if (user.role !== "penjual") {
-        throw new Error(
-            "Hanya penjual yang dapat menerima order"
-        );
-    }
+  await verifySellerOrder(sellerId, orderId);
 
-    const orderId = Number(id);
+  const current = await db
+    .select()
+    .from(orders)
+    .where(eq(orders.idOrder, orderId));
 
-    const [order] = await db
-        .select()
-        .from(orders)
-        .where(
-            eq(
-                orders.idOrder,
-                orderId
-            )
-        )
-        .limit(1);
+  if (current[0].statusOrder !== "menunggu_konfirmasi") {
+    throw new Error(
+      "Order hanya bisa diterima saat menunggu konfirmasi"
+    );
+  }
 
-    if (!order) {
-        throw new Error(
-            "Order tidak ditemukan"
-        );
-    }
+  const [order] = await db
+    .update(orders)
+    .set({
+      statusOrder: "diproses",
+    })
+    .where(eq(orders.idOrder, orderId))
+    .returning();
 
-    if (
-        order.statusOrder !==
-        "menunggu_konfirmasi"
-    ) {
-        throw new Error(
-            "Order belum dapat diterima"
-        );
-    }
-
-    // Pastikan order milik produk seller
-    const details =
-        await getOrderDetails(orderId);
-
-    let sellerOwnsOrder = false;
-
-    for (const detail of details) {
-        const [product] =
-            await db
-                .select({
-                    idPenjual:
-                        produk.idPenjual,
-                })
-                .from(produk)
-                .where(
-                    eq(
-                        produk.idProduct,
-                        detail.idProduct
-                    )
-                )
-                .limit(1);
-
-        if (
-            product &&
-            product.idPenjual ===
-                user.idUser
-        ) {
-            sellerOwnsOrder = true;
-            break;
-        }
-    }
-
-    if (!sellerOwnsOrder) {
-        throw new Error(
-            "Anda tidak memiliki akses ke order ini"
-        );
-    }
-
-    const [updatedOrder] =
-        await db
-            .update(orders)
-            .set({
-                statusOrder: "diproses",
-            })
-            .where(
-                eq(
-                    orders.idOrder,
-                    orderId
-                )
-            )
-            .returning();
-
-    return updatedOrder;
+  return order;
 };
 
 // Reject Order
 export const rejectOrder = async (
-    id,
-    user
+  sellerId,
+  orderId
 ) => {
-    if (user.role !== "penjual") {
-        throw new Error(
-            "Hanya penjual yang dapat menolak order"
-        );
+  await verifySellerOrder(sellerId, orderId);
+
+  return await db.transaction(async (tx) => {
+    const current = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.idOrder, orderId));
+
+    const finalStatus = [
+      "selesai",
+      "dibatalkan",
+    ];
+
+    if (finalStatus.includes(current[0].statusOrder)) {
+      throw new Error(
+        "Order sudah selesai atau sudah dibatalkan"
+      );
     }
 
-    const orderId = Number(id);
-
-    const [order] = await db
-        .select()
-        .from(orders)
-        .where(
-            eq(
-                orders.idOrder,
-                orderId
-            )
-        )
-        .limit(1);
-
-    if (!order) {
-        throw new Error(
-            "Order tidak ditemukan"
-        );
-    }
-
-    if (
-        order.statusOrder !==
-        "menunggu_konfirmasi"
-    ) {
-        throw new Error(
-            "Order tidak dapat ditolak"
-        );
-    }
-
-    const details =
-        await getOrderDetails(orderId);
-
-    let sellerOwnsOrder = false;
+    // Kembalikan stok produk
+    const details = await tx
+      .select()
+      .from(orderDetails)
+      .where(eq(orderDetails.idOrder, orderId));
 
     for (const detail of details) {
-        const [product] =
-            await db
-                .select({
-                    idPenjual:
-                        produk.idPenjual,
-                })
-                .from(produk)
-                .where(
-                    eq(
-                        produk.idProduct,
-                        detail.idProduct
-                    )
-                )
-                .limit(1);
-
-        if (
-            product &&
-            product.idPenjual ===
-                user.idUser
-        ) {
-            sellerOwnsOrder = true;
-            break;
-        }
-    }
-
-    if (!sellerOwnsOrder) {
-        throw new Error(
-            "Anda tidak memiliki akses ke order ini"
+      await tx
+        .update(products)
+        .set({
+          stok: sql`${products.stok} + ${detail.qty}`,
+          statusProduct: "tersedia",
+        })
+        .where(
+          eq(products.idProduct, detail.idProduct)
         );
     }
 
-    const [updatedOrder] =
-        await db
-            .update(orders)
-            .set({
-                statusOrder: "dibatalkan",
-            })
-            .where(
-                eq(
-                    orders.idOrder,
-                    orderId
-                )
-            )
-            .returning();
+    const [order] = await tx
+      .update(orders)
+      .set({
+        statusOrder: "dibatalkan",
+      })
+      .where(eq(orders.idOrder, orderId))
+      .returning();
 
-    return updatedOrder;
+    return order;
+  });
 };
 
 // Update Order Status
 export const updateOrderStatus = async (
-    id,
-    data,
-    user
+  sellerId,
+  orderId,
+  status
 ) => {
-    if (user.role !== "penjual") {
-        throw new Error(
-            "Hanya penjual yang dapat mengubah status order"
-        );
-    }
+  await verifySellerOrder(sellerId, orderId);
 
-    const orderId = Number(id);
+  const allowedStatuses = [
+    "diproses",
+    "dikirim",
+    "selesai",
+  ];
 
-    const {
-        statusOrder,
-    } = data;
+  if (!allowedStatuses.includes(status)) {
+    throw new Error(
+      "Status order tidak valid"
+    );
+  }
 
-    const allowedStatuses = [
-        "diproses",
-        "dikirim",
-        "selesai",
-    ];
+  const [order] = await db
+    .update(orders)
+    .set({
+      statusOrder: status,
+    })
+    .where(eq(orders.idOrder, orderId))
+    .returning();
 
-    if (
-        !allowedStatuses.includes(
-            statusOrder
-        )
-    ) {
-        throw new Error(
-            "Status order tidak valid"
-        );
-    }
-
-    const [order] = await db
-        .select()
-        .from(orders)
-        .where(
-            eq(
-                orders.idOrder,
-                orderId
-            )
-        )
-        .limit(1);
-
-    if (!order) {
-        throw new Error(
-            "Order tidak ditemukan"
-        );
-    }
-
-    // Validasi urutan status
-    const statusFlow = {
-        diproses: [
-            "dikirim",
-        ],
-        dikirim: [
-            "selesai",
-        ],
-    };
-
-    const allowedNextStatuses =
-        statusFlow[
-            order.statusOrder
-        ];
-
-    if (
-        !allowedNextStatuses ||
-        !allowedNextStatuses.includes(
-            statusOrder
-        )
-    ) {
-        throw new Error(
-            `Order dengan status ${order.statusOrder} tidak dapat diubah menjadi ${statusOrder}`
-        );
-    }
-
-    // Pastikan seller memiliki order
-    const details =
-        await getOrderDetails(orderId);
-
-    let sellerOwnsOrder = false;
-
-    for (const detail of details) {
-        const [product] =
-            await db
-                .select({
-                    idPenjual:
-                        produk.idPenjual,
-                })
-                .from(produk)
-                .where(
-                    eq(
-                        produk.idProduct,
-                        detail.idProduct
-                    )
-                )
-                .limit(1);
-
-        if (
-            product &&
-            product.idPenjual ===
-                user.idUser
-        ) {
-            sellerOwnsOrder = true;
-            break;
-        }
-    }
-
-    if (!sellerOwnsOrder) {
-        throw new Error(
-            "Anda tidak memiliki akses ke order ini"
-        );
-    }
-
-    const [updatedOrder] =
-        await db
-            .update(orders)
-            .set({
-                statusOrder,
-            })
-            .where(
-                eq(
-                    orders.idOrder,
-                    orderId
-                )
-            )
-            .returning();
-
-    return updatedOrder;
+  return order;
 };

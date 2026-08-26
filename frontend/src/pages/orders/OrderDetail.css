@@ -1,0 +1,50 @@
+.order-detail-page {
+  max-width: 720px;
+}
+
+.order-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.order-detail-card {
+  padding: 26px;
+}
+
+.order-upload-card {
+  padding: 22px 26px;
+  margin-top: 20px;
+}
+
+.order-upload-row {
+  display: flex;
+  gap: 12px;
+}
+
+.order-upload-input {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: var(--surface-muted);
+}
+
+.order-upload-input:hover {
+  border-color: var(--blue);
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
+  .order-upload-row {
+    flex-direction: column;
+  }
+}

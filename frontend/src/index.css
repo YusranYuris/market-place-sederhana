@@ -1,0 +1,510 @@
+/* =========== DESIGN TOKENS =========== */
+
+:root {
+  --blue: #2563eb;
+  --blue-dark: #1d4ed8;
+  --blue-light: #eff6ff;
+
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-muted: #f9fafb;
+
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-soft: #94a3b8;
+
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  --green: #16a34a;
+  --green-light: #f0fdf4;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --amber: #d97706;
+  --amber-light: #fffbeb;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+
+  --container: 1160px;
+}
+
+/* =========== RESET =========== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+body {
+  font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+/* =========== LAYOUT =========== */
+
+.container {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.page {
+  padding: 32px 0 64px;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* =========== CARD =========== */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* =========== FORM =========== */
+
+.field {
+  margin-bottom: 18px;
+}
+
+.field-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.field-row .field-label {
+  margin-bottom: 0;
+}
+
+.input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input-wrap:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.input-wrap svg {
+  color: var(--text-soft);
+  flex-shrink: 0;
+}
+
+.input-wrap input,
+.input-wrap textarea,
+.input-wrap select {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 12px 0;
+}
+
+.input-wrap textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+.input-wrap input::placeholder,
+.input-wrap textarea::placeholder {
+  color: var(--text-soft);
+}
+
+.input-toggle {
+  border: none;
+  background: none;
+  color: var(--text-soft);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+}
+
+.input-toggle:hover {
+  color: var(--text-muted);
+}
+
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.checkbox input {
+  margin-top: 3px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.field-error {
+  color: var(--red);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+/* =========== BUTTON =========== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 11px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+
+.btn-primary:not(:disabled):hover {
+  background: var(--blue-dark);
+}
+
+.btn-outline {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.btn-outline:not(:disabled):hover {
+  background: var(--surface-muted);
+}
+
+.btn-danger {
+  background: var(--red);
+  color: #fff;
+}
+
+.btn-danger:not(:disabled):hover {
+  opacity: 0.9;
+}
+
+.btn-block {
+  width: 100%;
+  padding: 13px 18px;
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+/* =========== BADGE =========== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-blue {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+}
+
+.badge-green {
+  background: var(--green-light);
+  color: var(--green);
+}
+
+.badge-red {
+  background: var(--red-light);
+  color: var(--red);
+}
+
+.badge-amber {
+  background: var(--amber-light);
+  color: var(--amber);
+}
+
+.badge-purple {
+  background: var(--purple-light);
+  color: var(--purple);
+}
+
+.badge-gray {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* =========== UTIL =========== */
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  border: none;
+  margin: 24px 0;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.center {
+  text-align: center;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: var(--blue);
+}
+
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+}
+
+.qty-stepper button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  cursor: pointer;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.qty-stepper button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.qty-stepper span {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.qty-stepper-sm {
+  gap: 10px;
+  padding: 5px 10px;
+}
+
+.qty-stepper-sm button {
+  width: 22px;
+  height: 22px;
+}
+
+/* Ringkasan pesanan (checkout & detail pesanan) */
+
+.checkout-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.checkout-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.checkout-info-row svg {
+  color: var(--blue);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.checkout-address span {
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.checkout-items {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.checkout-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.checkout-item-image {
+  width: 56px;
+  height: 56px;
+}
+
+.checkout-item-info {
+  flex: 1;
+}
+
+.checkout-item-name {
+  font-weight: 600;
+}
+
+.checkout-item-price {
+  text-align: right;
+  font-size: 13px;
+}
+
+.checkout-item-subtotal {
+  font-weight: 700;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.checkout-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 17px;
+  margin-bottom: 26px;
+}
+
+.checkout-total {
+  color: var(--blue);
+  font-size: 22px;
+}
+
+.orders-id {
+  font-weight: 700;
+}
+
+.orders-total {
+  font-weight: 700;
+}
+
+.order-proof-image {
+  max-width: 320px;
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.state-box {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--text-muted);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

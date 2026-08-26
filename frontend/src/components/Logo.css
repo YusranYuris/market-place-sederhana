@@ -1,0 +1,38 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.logo-mark {
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: #fff;
+  border-radius: var(--radius-sm);
+}
+
+.logo-text {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.logo-md .logo-mark {
+  width: 28px;
+  height: 28px;
+}
+
+.logo-md .logo-text {
+  font-size: 17px;
+}
+
+.logo-lg .logo-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+}
+
+.logo-lg .logo-text {
+  font-size: 25px;
+}

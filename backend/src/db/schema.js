@@ -166,7 +166,7 @@ export const orderDetails = pgTable("order_detail", {
 
   idProduct: integer("id_product")
     .notNull()
-    .references(() => produk.idProduct, {
+    .references(() => products.idProduct, {
       onDelete: "restrict",
       onUpdate: "cascade",
     }),
@@ -189,16 +189,16 @@ export const orderDetails = pgTable("order_detail", {
 export const usersRelations = relations(
   users,
   ({ many }) => ({
-    produk: many(produk),
+    products: many(products),
     orders: many(orders),
   })
 );
 
-export const produkRelations = relations(
-  produk,
+export const productsRelations = relations(
+  products,
   ({ one, many }) => ({
     penjual: one(users, {
-      fields: [produk.idPenjual],
+      fields: [products.idPenjual],
       references: [users.idUser],
     }),
 
@@ -226,9 +226,9 @@ export const orderDetailsRelations = relations(
       references: [orders.idOrder],
     }),
 
-    product: one(produk, {
+    product: one(products, {
       fields: [orderDetails.idProduct],
-      references: [produk.idProduct],
+      references: [products.idProduct],
     }),
   })
 );

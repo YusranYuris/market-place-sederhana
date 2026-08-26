@@ -1,228 +1,296 @@
-import {
-    eq,
-    and,
-    ilike,
-} from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "../db/index.js";
 import { products } from "../db/schema.js";
 
+import {
+  uploadFile,
+  getPublicUrl,
+  deleteFile,
+} from "./storageService.js";
+
 // =========== PRODUCT SERVICE ===========
+
+// Map stored file path to public URL
+const withImageUrl = (product) => ({
+  ...product,
+  gambarProduct: product.gambarProduct
+    ? getPublicUrl(
+        "product-images",
+        product.gambarProduct
+      )
+    : null,
+});
+
+// Status produk mengikuti stok
+const statusFromStok = (stok) =>
+  Number(stok) > 0 ? "tersedia" : "habis";
 
 // ----- Collection ------
 
 // Get All Products
-export const getProducts = async (query = {}) => {
-    const {
-        search,
-        kategori,
-    } = query;
+export const getProducts = async (filter = {}) => {
+  const conditions = [];
 
-    const conditions = [
-        eq(products.statusProduct, "tersedia"),
-    ];
+  if (filter.idPenjual) {
+    conditions.push(
+      eq(products.idPenjual, Number(filter.idPenjual))
+    );
+  }
 
-    // Search berdasarkan nama products
-    if (search) {
-        conditions.push(
-            ilike(products.namaProduct, `%${search}%`)
-        );
-    }
+  if (filter.kategori) {
+    conditions.push(
+      eq(products.kategori, filter.kategori)
+    );
+  }
 
-    // Filter kategori
-    if (kategori) {
-        conditions.push(
-            eq(products.kategori, kategori)
-        );
-    }
+  const query = db.select().from(products);
 
-    const products = await db
-        .select()
-        .from(products)
-        .where(and(...conditions))
-        .orderBy(products.idProduct);
+  const result =
+    conditions.length > 0
+      ? await query.where(and(...conditions))
+      : await query;
 
-    return products;
+  return result.map(withImageUrl);
 };
 
 // Create New Product
-export const createProduct = async (data, user) => {
-    const {
-        namaProduct,
-        deskripsi,
-        harga,
-        stok,
-        kategori,
-        gambarProduct,
-    } = data;
+export const createProduct = async (
+  sellerId,
+  data,
+  file
+) => {
+  const {
+    namaProduct,
+    deskripsi,
+    harga,
+    stok,
+    kategori,
+  } = data;
 
-    // Pastikan user adalah penjual
-    if (user.role !== "penjual") {
-        throw new Error(
-            "Hanya penjual yang dapat menambahkan products"
-        );
-    }
+  if (!namaProduct) {
+    throw new Error("Nama produk wajib diisi");
+  }
 
-    if (!namaProduct || !harga || stok === undefined) {
-        throw new Error(
-            "Nama products, harga, dan stok wajib diisi"
-        );
-    }
+  if (!deskripsi) {
+    throw new Error("Deskripsi produk wajib diisi");
+  }
 
-    if (harga < 0) {
-        throw new Error("Harga tidak boleh negatif");
-    }
+  if (harga === undefined || harga === "") {
+    throw new Error("Harga produk wajib diisi");
+  }
 
-    if (stok < 0) {
-        throw new Error("Stok tidak boleh negatif");
-    }
+  if (Number.isNaN(Number(harga)) || Number(harga) < 0) {
+    throw new Error("Harga produk tidak valid");
+  }
 
-    const statusProduct =
-        Number(stok) > 0
-            ? "tersedia"
-            : "habis";
+  if (!kategori) {
+    throw new Error("Kategori produk wajib diisi");
+  }
 
-    const [newProduct] = await db
-        .insert(products)
-        .values({
-            idPenjual: user.idUser,
-            namaProduct,
-            deskripsi,
-            harga: Number(harga),
-            stok: Number(stok),
-            kategori,
-            gambarProduct,
-            statusProduct,
-        })
-        .returning();
+  const jumlahStok =
+    stok === undefined || stok === "" ? 0 : Number(stok);
 
-    return newProduct;
+  if (Number.isNaN(jumlahStok) || jumlahStok < 0) {
+    throw new Error("Stok produk tidak valid");
+  }
+
+  let gambarProduct = null;
+
+  // Upload product image
+  if (file) {
+    const uploaded = await uploadFile({
+      bucket: "product-images",
+      folder: sellerId.toString(),
+      file,
+    });
+
+    gambarProduct = uploaded.path;
+  }
+
+  const [product] = await db
+    .insert(products)
+    .values({
+      idPenjual: sellerId,
+      namaProduct,
+      deskripsi,
+      harga: Number(harga).toFixed(2),
+      stok: jumlahStok,
+      kategori,
+      gambarProduct,
+      statusProduct: statusFromStok(jumlahStok),
+    })
+    .returning();
+
+  return withImageUrl(product);
 };
 
 // ----- Resource ------
 
 // Get Product By ID
-export const getProductById = async (id) => {
-    const [product] = await db
-        .select()
-        .from(products)
-        .where(eq(products.idProduct, Number(id)))
-        .limit(1);
+export const getProductById = async (
+  productId
+) => {
+  const result = await db
+    .select()
+    .from(products)
+    .where(eq(products.idProduct, productId));
 
-    if (!product) {
-        throw new Error("products tidak ditemukan");
-    }
+  if (result.length === 0) {
+    throw new Error("Produk tidak ditemukan");
+  }
 
-    return product;
+  return withImageUrl(result[0]);
 };
 
 // Update Product
-export const updateProduct = async (id, data, user) => {
-    const productId = Number(id);
+export const updateProduct = async (
+  sellerId,
+  productId,
+  data,
+  file
+) => {
+  const result = await db
+    .select()
+    .from(products)
+    .where(eq(products.idProduct, productId));
 
-    // Cari products
-    const [existingProduct] = await db
-        .select()
-        .from(products)
-        .where(eq(products.idProduct, productId))
-        .limit(1);
+  if (result.length === 0) {
+    throw new Error("Produk tidak ditemukan");
+  }
 
-    if (!existingProduct) {
-        throw new Error("products tidak ditemukan");
+  const product = result[0];
+
+  // Make sure seller owns the product
+  if (product.idPenjual !== sellerId) {
+    throw new Error(
+      "Anda tidak memiliki akses ke produk ini"
+    );
+  }
+
+  const updateData = {};
+
+  if (data.namaProduct !== undefined) {
+    updateData.namaProduct = data.namaProduct;
+  }
+
+  if (data.deskripsi !== undefined) {
+    updateData.deskripsi = data.deskripsi;
+  }
+
+  if (data.harga !== undefined) {
+    if (
+      Number.isNaN(Number(data.harga)) ||
+      Number(data.harga) < 0
+    ) {
+      throw new Error("Harga produk tidak valid");
     }
 
-    // Pastikan pemilik products
-    if (existingProduct.idPenjual !== user.idUser) {
-        throw new Error(
-            "Anda tidak memiliki akses ke products ini"
-        );
+    updateData.harga = Number(data.harga).toFixed(2);
+  }
+
+  if (data.kategori !== undefined) {
+    updateData.kategori = data.kategori;
+  }
+
+  if (data.stok !== undefined) {
+    const jumlahStok = Number(data.stok);
+
+    if (Number.isNaN(jumlahStok) || jumlahStok < 0) {
+      throw new Error("Stok produk tidak valid");
     }
 
-    const {
-        namaProduct,
-        deskripsi,
-        harga,
-        stok,
-        kategori,
-        gambarProduct,
-    } = data;
+    updateData.stok = jumlahStok;
+    updateData.statusProduct =
+      statusFromStok(jumlahStok);
+  }
 
-    const updateData = {};
+  // Upload new image
+  if (file) {
+    const uploaded = await uploadFile({
+      bucket: "product-images",
+      folder: sellerId.toString(),
+      file,
+    });
 
-    if (namaProduct !== undefined) {
-        updateData.namaProduct = namaProduct;
+    updateData.gambarProduct = uploaded.path;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    throw new Error("Tidak ada data yang diperbarui");
+  }
+
+  const [updatedProduct] = await db
+    .update(products)
+    .set(updateData)
+    .where(eq(products.idProduct, productId))
+    .returning();
+
+  // Delete old image
+  if (file && product.gambarProduct) {
+    try {
+      await deleteFile(
+        "product-images",
+        product.gambarProduct
+      );
+    } catch (error) {
+      console.error(
+        "Gagal menghapus gambar lama:",
+        error.message
+      );
     }
+  }
 
-    if (deskripsi !== undefined) {
-        updateData.deskripsi = deskripsi;
-    }
-
-    if (harga !== undefined) {
-        if (Number(harga) < 0) {
-            throw new Error("Harga tidak boleh negatif");
-        }
-
-        updateData.harga = Number(harga);
-    }
-
-    if (stok !== undefined) {
-        if (Number(stok) < 0) {
-            throw new Error("Stok tidak boleh negatif");
-        }
-
-        updateData.stok = Number(stok);
-
-        updateData.statusProduct =
-            Number(stok) > 0
-                ? "tersedia"
-                : "habis";
-    }
-
-    if (kategori !== undefined) {
-        updateData.kategori = kategori;
-    }
-
-    if (gambarProduct !== undefined) {
-        updateData.gambarProduct = gambarProduct;
-    }
-
-    if (Object.keys(updateData).length === 0) {
-        throw new Error("Tidak ada data yang diperbarui");
-    }
-
-    const [updatedProduct] = await db
-        .update(products)
-        .set(updateData)
-        .where(eq(products.idProduct, productId))
-        .returning();
-
-    return updatedProduct;
+  return withImageUrl(updatedProduct);
 };
 
 // Delete Product
-export const deleteProduct = async (id, user) => {
-    const productId = Number(id);
+export const deleteProduct = async (
+  sellerId,
+  productId
+) => {
+  const result = await db
+    .select()
+    .from(products)
+    .where(eq(products.idProduct, productId));
 
-    const [existingProduct] = await db
-        .select()
-        .from(products)
-        .where(eq(products.idProduct, productId))
-        .limit(1);
+  if (result.length === 0) {
+    throw new Error("Produk tidak ditemukan");
+  }
 
-    if (!existingProduct) {
-        throw new Error("products tidak ditemukan");
-    }
+  const product = result[0];
 
-    // Pastikan pemilik products
-    if (existingProduct.idPenjual !== user.idUser) {
-        throw new Error(
-            "Anda tidak memiliki akses ke products ini"
-        );
-    }
+  if (product.idPenjual !== sellerId) {
+    throw new Error(
+      "Anda tidak memiliki akses ke produk ini"
+    );
+  }
 
+  try {
     await db
-        .delete(products)
-        .where(eq(products.idProduct, productId));
+      .delete(products)
+      .where(eq(products.idProduct, productId));
+  } catch (error) {
+    // FK restrict: produk sudah pernah masuk order
+    throw new Error(
+      "Produk tidak bisa dihapus karena sudah pernah dipesan"
+    );
+  }
 
-    return true;
+  // Delete image from storage
+  if (product.gambarProduct) {
+    try {
+      await deleteFile(
+        "product-images",
+        product.gambarProduct
+      );
+    } catch (error) {
+      console.error(
+        "Gagal menghapus gambar produk:",
+        error.message
+      );
+    }
+  }
+
+  return true;
 };

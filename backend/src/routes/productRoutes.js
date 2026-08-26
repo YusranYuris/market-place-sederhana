@@ -1,11 +1,19 @@
 import express from "express";
+
 import {
-    getProducts,
-    createProduct,
-    getProductById,
-    updateProduct,
-    deleteProduct,
+  getProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
 } from "../controllers/productController.js";
+
+import {
+  authMiddleware,
+  requireRole,
+} from "../middleware/authMiddleware.js";
+
+import { uploadImage } from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
 
@@ -17,7 +25,13 @@ const router = express.Router();
 router.get("/", getProducts);
 
 // Create New Product
-router.post("/", createProduct);
+router.post(
+  "/",
+  authMiddleware,
+  requireRole("penjual"),
+  uploadImage.single("gambar_product"),
+  createProduct
+);
 
 // ----- Resource ------
 
@@ -25,9 +39,20 @@ router.post("/", createProduct);
 router.get("/:id", getProductById);
 
 // Update Product
-router.put("/:id", updateProduct);
+router.put(
+  "/:id",
+  authMiddleware,
+  requireRole("penjual"),
+  uploadImage.single("gambar_product"),
+  updateProduct
+);
 
 // Delete Product
-router.delete("/:id", deleteProduct);
+router.delete(
+  "/:id",
+  authMiddleware,
+  requireRole("penjual"),
+  deleteProduct
+);
 
 export default router;

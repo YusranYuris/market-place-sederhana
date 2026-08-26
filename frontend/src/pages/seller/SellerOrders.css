@@ -1,0 +1,63 @@
+.seller-orders-card {
+  padding: 0;
+  margin-top: 26px;
+  overflow-x: auto;
+}
+
+.seller-orders-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.seller-orders-tabs button {
+  border: none;
+  background: none;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.seller-orders-tabs button:hover {
+  background: var(--surface-muted);
+}
+
+.seller-orders-tabs button.active {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+  font-weight: 600;
+}
+
+.seller-orders-row {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr 1.3fr 1.4fr 0.5fr;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  min-width: 780px;
+}
+
+.seller-orders-row:last-child {
+  border-bottom: none;
+}
+
+.seller-orders-row-head {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.seller-orders-actions {
+  display: flex;
+  gap: 8px;
+}

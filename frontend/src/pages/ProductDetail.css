@@ -1,0 +1,71 @@
+.pd-layout {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 40px;
+}
+
+.pd-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.pd-image img {
+  border-radius: var(--radius-lg);
+}
+
+.pd-category {
+  color: var(--text-soft);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.pd-name {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.pd-price {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: 14px;
+}
+
+.pd-stock-badge {
+  margin-bottom: 20px;
+}
+
+.pd-desc {
+  color: var(--text-muted);
+  line-height: 1.7;
+  margin-bottom: 24px;
+  white-space: pre-line;
+}
+
+.pd-qty {
+  margin-bottom: 26px;
+}
+
+.pd-qty .field-label {
+  margin-bottom: 10px;
+}
+
+.pd-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.pd-actions .btn {
+  flex: 1;
+}
+
+@media (max-width: 720px) {
+  .pd-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pd-image {
+    max-width: 340px;
+  }
+}
