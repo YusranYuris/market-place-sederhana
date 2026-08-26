@@ -6,7 +6,7 @@ const router = express.Router();
 
 // ----- Collection ------
 
-// Get All Orders
+// Get Orders
 router.get("/", );
 
 // Create New Order
@@ -17,16 +17,10 @@ router.post("/", );
 // Get Order By ID
 router.get("/:id", );
 
-// Update Order
-router.put("/:id", );
-
-// Cancel Order
-router.delete("/:id", );
-
 // ----- Order Actions ------
 
 // Upload Payment Proof
-router.post("/:id/payment", );
+router.patch("/:id/payment", );
 
 // Accept Order
 router.patch("/:id/accept", );
