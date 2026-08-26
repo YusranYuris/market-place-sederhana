@@ -80,7 +80,7 @@ export const users = pgTable(
 );
 
 // Product Table
-export const produk = pgTable("produk", {
+export const products = pgTable("products", {
   idProduct: serial("id_product").primaryKey(),
 
   idPenjual: integer("id_penjual")

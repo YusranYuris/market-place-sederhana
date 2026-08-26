@@ -1,4 +1,13 @@
 import express from "express";
+import {
+    getOrders,
+    createOrder,
+    getOrderById,
+    uploadPaymentProof,
+    acceptOrder,
+    rejectOrder,
+    updateOrderStatus,
+} from "../controllers/orderController.js";
 
 const router = express.Router();
 
@@ -7,28 +16,28 @@ const router = express.Router();
 // ----- Collection ------
 
 // Get Orders
-router.get("/", );
+router.get("/", getOrders);
 
 // Create New Order
-router.post("/", );
+router.post("/", createOrder);
 
 // ----- Resource ------
 
 // Get Order By ID
-router.get("/:id", );
+router.get("/:id", getOrderById);
 
 // ----- Order Actions ------
 
 // Upload Payment Proof
-router.patch("/:id/payment", );
+router.patch("/:id/payment", uploadPaymentProof);
 
 // Accept Order
-router.patch("/:id/accept", );
+router.patch("/:id/accept", acceptOrder);
 
 // Reject Order
-router.patch("/:id/reject", );
+router.patch("/:id/reject", rejectOrder);
 
 // Update Order Status
-router.patch("/:id/status", );
+router.patch("/:id/status", updateOrderStatus);
 
 export default router;
